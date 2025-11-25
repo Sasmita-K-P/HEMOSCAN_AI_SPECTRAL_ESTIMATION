@@ -21,6 +21,9 @@ def create_scan_record(db: Session, scan_data: ScanResponse) -> ScanRecord:
     Returns:
         Created ScanRecord
     """
+    # Convert to dict with JSON-safe datetime serialization
+    response_dict = scan_data.model_dump(mode='json')
+    
     record = ScanRecord(
         scan_id=scan_data.scan_id,
         timestamp=scan_data.timestamp,
@@ -37,7 +40,7 @@ def create_scan_record(db: Session, scan_data: ScanResponse) -> ScanRecord:
         anemia_stage=scan_data.prediction.anemia_stage.value if scan_data.prediction and scan_data.prediction.anemia_stage else None,
         risk_score=scan_data.prediction.risk_score if scan_data.prediction else None,
         model_version=f"unet_{scan_data.version.unet}_hb_{scan_data.version.hb_model}",
-        response_data=scan_data.dict()
+        response_data=response_dict  # Use JSON-safe dict
     )
     
     db.add(record)
