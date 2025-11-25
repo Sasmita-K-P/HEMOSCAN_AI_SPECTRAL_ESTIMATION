@@ -63,7 +63,8 @@ async def create_scan(
         
         # Validation
         with scan_duration_seconds.labels(stage='validation').time():
-            pil_image = validate_upload(file_bytes, file.filename)
+            pil_image, hand_info = validate_upload(file_bytes, file.filename)
+            logger.info(f"Hand detection: {hand_info}")
         
         # Quality Control
         with scan_duration_seconds.labels(stage='quality_control').time():

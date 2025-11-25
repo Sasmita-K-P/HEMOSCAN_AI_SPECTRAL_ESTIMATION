@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Camera, X, AlertCircle, CheckCircle2, Upload, Loader2 } from 'lucide-react';
 import { AnalysisResult } from '../types';
-import { analyzeNailImage } from '../services/geminiService';
+import { analyzeNailImage } from '../services/apiService';
 
 interface ScanProps {
     onResult: (result: AnalysisResult) => void;
@@ -82,7 +82,8 @@ const Scan: React.FC<ScanProps> = ({ onResult, onCancel }) => {
             const result = await analyzeNailImage(capturedImage);
             onResult(result);
         } catch (err) {
-            setError('Analysis failed. Please try again.');
+            const errorMessage = err instanceof Error ? err.message : 'Analysis failed. Please try again.';
+            setError(errorMessage);
             console.error('Analysis error:', err);
         } finally {
             setIsProcessing(false);

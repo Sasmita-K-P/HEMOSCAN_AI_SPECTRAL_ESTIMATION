@@ -7,6 +7,7 @@ from PIL import Image
 import io
 from app.config import settings
 from app.utils.logger import setup_logger
+from app.services.hand_detector import validate_hand_in_image, HandDetectionError
 
 logger = setup_logger(__name__)
 
@@ -129,7 +130,32 @@ def validate_image_integrity(file_bytes: bytes) -> Image.Image:
         raise ValidationError(f"Corrupted or unreadable image: {str(e)}")
 
 
-def validate_upload(file_bytes: bytes, filename: str) -> Image.Image:
+def validate_hand_presence(file_bytes: bytes) -> dict:
+    """
+    Validate that the image contains a hand/fingers.
+    
+    Args:
+        file_bytes: Raw file bytes
+        
+    Returns:
+        Hand detection info dictionary
+        
+    Raises:
+        ValidationError: If no hand is detected
+    """
+    try:
+        detection_info = validate_hand_in_image(file_bytes)
+        logger.info(f"Hand presence validated: {detection_info}")
+        return detection_info
+    except HandDetectionError as e:
+        # Convert HandDetectionError to ValidationError for consistency
+        raise ValidationError(str(e))
+    except Exception as e:
+        logger.error(f"Hand validation failed: {e}")
+        raise ValidationError(f"Failed to validate hand presence: {str(e)}")
+
+
+def validate_upload(file_bytes: bytes, filename: str) -> Tuple[Image.Image, dict]:
     """
     Complete validation pipeline for uploaded image.
     
@@ -138,15 +164,25 @@ def validate_upload(file_bytes: bytes, filename: str) -> Image.Image:
         filename: Original filename
         
     Returns:
-        Validated PIL Image object
+        Tuple of (validated PIL Image object, hand_detection_info)
         
     Raises:
         ValidationError: If any validation fails
     """
+    # Step 1: File type and format validation
     validate_file_type(file_bytes, filename)
+    
+    # Step 2: File size validation
     validate_file_size(file_bytes)
+    
+    # Step 3: Resolution validation
     validate_image_resolution(file_bytes)
+    
+    # Step 4: Hand detection validation (NEW - rejects non-hand images)
+    hand_info = validate_hand_presence(file_bytes)
+    
+    # Step 5: Image integrity validation
     img = validate_image_integrity(file_bytes)
     
     logger.info(f"Upload validation complete: {filename}")
-    return img
+    return img, hand_info
