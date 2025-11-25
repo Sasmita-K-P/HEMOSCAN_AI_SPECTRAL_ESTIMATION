@@ -1,0 +1,7 @@
+{
+  "name": "HemoScan AI",
+  "description": "Clinical-grade anemia screening system using nail-bed analysis. Estimates hemoglobin levels using AI-driven spectral analysis and segmentation simulation.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
