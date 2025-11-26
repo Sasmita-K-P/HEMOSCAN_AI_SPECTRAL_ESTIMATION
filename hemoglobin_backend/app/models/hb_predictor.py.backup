@@ -135,26 +135,22 @@ class HbPredictor:
         """
         self.model = None
         self.model_path = model_path or settings.hb_model_path
-        self.is_trained = False
         
         if self.model_path.exists():
             self.load_model()
         else:
-            logger.warning(f"Hb model not found at {self.model_path}. Using feature-based mock predictions.")
-            self.model = None
-            self.is_trained = False
+            logger.warning(f"Hb model not found at {self.model_path}. Using placeholder.")
+            self.model = build_hb_predictor()
     
     def load_model(self):
         """Load trained model weights."""
         try:
             self.model = keras.models.load_model(str(self.model_path))
-            self.is_trained = True
             logger.info(f"Loaded Hb model from {self.model_path}")
         except Exception as e:
             logger.error(f"Failed to load Hb model: {e}")
-            logger.warning("Falling back to feature-based mock predictions")
-            self.model = None
-            self.is_trained = False
+            logger.warning("Using untrained model")
+            self.model = build_hb_predictor()
     
     def features_to_array(self, features: Dict) -> np.ndarray:
         """
@@ -193,46 +189,6 @@ class HbPredictor:
         
         return feature_array
     
-    def predict_mock_from_features(
-        self,
-        features: Dict
-    ) -> Tuple[float, float, float, np.ndarray]:
-        """Generate realistic mock prediction from extracted features."""
-        mean_L = features["color"]["mean_L"]
-        ratio_R_G = features["color"]["ratio_R_G"]
-        vessel_density = features["vascular"]["vessel_density"]
-        mean_R = features["color"]["mean_R"]
-        
-        base_hb = 14.0
-        L_normalized = (mean_L - 60) / 20.0
-        L_factor = -L_normalized * 2.0
-        rg_normalized = (ratio_R_G - 1.05) / 0.15
-        rg_factor = rg_normalized * 1.5
-        vessel_normalized = (vessel_density - 0.15) / 0.1
-        vessel_factor = vessel_normalized * 0.8
-        red_normalized = (mean_R - 150) / 50.0
-        red_factor = red_normalized * 0.5
-        
-        hb_mean = base_hb + L_factor + rg_factor + vessel_factor + red_factor
-        hb_mean = float(np.clip(hb_mean, 8.0, 18.0))
-        
-        texture_uniformity = features["texture"].get("lbp_uniformity", 0.5)
-        base_std = 0.6 + (1.0 - texture_uniformity) * 0.4
-        hb_std = float(base_std + np.random.uniform(-0.1, 0.1))
-        uncertainty = float(min(hb_std / (hb_mean + 1e-6), 0.5))
-        
-        if hb_mean >= 12.0:
-            anemia_probs = np.array([0.75, 0.15, 0.08, 0.02])
-        elif hb_mean >= 11.0:
-            anemia_probs = np.array([0.25, 0.55, 0.15, 0.05])
-        elif hb_mean >= 8.0:
-            anemia_probs = np.array([0.10, 0.25, 0.55, 0.10])
-        else:
-            anemia_probs = np.array([0.05, 0.10, 0.30, 0.55])
-        
-        logger.info(f"Mock prediction: Hb={hb_mean:.2f}±{hb_std:.2f} g/dL (L*={mean_L:.1f}, R/G={ratio_R_G:.3f})")
-        return hb_mean, hb_std, uncertainty, anemia_probs
-    
     def predict_with_uncertainty(
         self,
         roi_image: np.ndarray,
@@ -250,11 +206,6 @@ class HbPredictor:
         Returns:
             Tuple of (hb_mean, hb_std, uncertainty, anemia_probs)
         """
-        # Use mock predictions if model not trained
-        if not self.is_trained or self.model is None:
-            logger.info("Using feature-based mock predictions (no trained model)")
-            return self.predict_mock_from_features(features)
-        
         n_passes = n_passes or settings.mc_dropout_passes
         
         # Prepare inputs
