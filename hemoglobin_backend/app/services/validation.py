@@ -8,6 +8,7 @@ import io
 from app.config import settings
 from app.utils.logger import setup_logger
 from app.services.hand_detector import validate_hand_in_image, HandDetectionError
+from app.services.nail_polish_detector import detect_nail_polish, NailPolishDetectionError
 
 logger = setup_logger(__name__)
 
@@ -155,6 +156,35 @@ def validate_hand_presence(file_bytes: bytes) -> dict:
         raise ValidationError(f"Failed to validate hand presence: {str(e)}")
 
 
+def validate_no_nail_polish(file_bytes: bytes, hand_info: dict) -> None:
+    """
+    Validate that nails are not painted.
+    
+    Args:
+        file_bytes: Raw file bytes
+        hand_info: Hand detection info
+        
+    Raises:
+        ValidationError: If nail polish is detected
+    """
+    try:
+        result = detect_nail_polish(file_bytes, hand_info)
+        if result['is_painted']:
+            raise ValidationError(
+                f"Nail polish detected ({result['reason']}). "
+                "Please remove nail polish for accurate hemoglobin estimation."
+            )
+        logger.info(f"Nail polish check passed: {result['reason']}")
+    except NailPolishDetectionError as e:
+        raise ValidationError(str(e))
+    except ValidationError:
+        raise
+    except Exception as e:
+        logger.error(f"Nail polish validation failed: {e}")
+        # Don't block the user if detection fails - log and continue
+        logger.warning("Nail polish detection failed, continuing with analysis")
+
+
 def validate_upload(file_bytes: bytes, filename: str) -> Tuple[Image.Image, dict]:
     """
     Complete validation pipeline for uploaded image.
@@ -178,10 +208,13 @@ def validate_upload(file_bytes: bytes, filename: str) -> Tuple[Image.Image, dict
     # Step 3: Resolution validation
     validate_image_resolution(file_bytes)
     
-    # Step 4: Hand detection validation (NEW - rejects non-hand images)
+    # Step 4: Hand detection validation
     hand_info = validate_hand_presence(file_bytes)
     
-    # Step 5: Image integrity validation
+    # Step 5: Nail polish detection (NEW)
+    validate_no_nail_polish(file_bytes, hand_info)
+    
+    # Step 6: Image integrity validation
     img = validate_image_integrity(file_bytes)
     
     logger.info(f"Upload validation complete: {filename}")

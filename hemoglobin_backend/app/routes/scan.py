@@ -8,6 +8,7 @@ from pathlib import Path
 from PIL import Image
 import io
 import time
+import base64
 from datetime import datetime
 
 from app.schemas import ScanResponse, ScanRequest, ErrorResponse
@@ -93,12 +94,22 @@ async def create_scan(
             original_path = settings.upload_dir / f"{scan_id}_original.jpg"
             pil_image.save(original_path)
             
+            # Encode original image as base64
+            original_buffer = io.BytesIO()
+            pil_image.save(original_buffer, format='JPEG')
+            original_base64 = base64.b64encode(original_buffer.getvalue()).decode('utf-8')
+            
             # Preprocess
             preprocessed_path = settings.processed_dir / f"{scan_id}_preprocessed.jpg"
             preprocessed_image, preprocessing_report = preprocess_image(
                 pil_image,
                 save_path=str(preprocessed_path)
             )
+            
+            # Encode preprocessed image as base64
+            preprocessed_buffer = io.BytesIO()
+            Image.fromarray(preprocessed_image).save(preprocessed_buffer, format='JPEG')
+            preprocessed_base64 = base64.b64encode(preprocessed_buffer.getvalue()).decode('utf-8')
         
         # Segmentation
         with scan_duration_seconds.labels(stage='segmentation').time():
@@ -107,6 +118,11 @@ async def create_scan(
                 save_dir=settings.processed_dir,
                 scan_id=scan_id
             )
+            
+            # Encode ROI image as base64
+            roi_buffer = io.BytesIO()
+            Image.fromarray(roi_image).save(roi_buffer, format='JPEG')
+            roi_base64 = base64.b64encode(roi_buffer.getvalue()).decode('utf-8')
         
         # Feature Extraction
         with scan_duration_seconds.labels(stage='feature_extraction').time():
@@ -136,6 +152,11 @@ async def create_scan(
                     features.dict(),
                     prediction.hb_g_per_dl
                 )
+        
+        # Add base64 images to reports
+        preprocessing_report.original_image_base64 = f"data:image/jpeg;base64,{original_base64}"
+        preprocessing_report.preprocessed_image_base64 = f"data:image/jpeg;base64,{preprocessed_base64}"
+        segmentation_report.roi_image_base64 = f"data:image/jpeg;base64,{roi_base64}"
         
         # Create response
         scan_response = ScanResponse(

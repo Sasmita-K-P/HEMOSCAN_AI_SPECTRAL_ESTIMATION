@@ -59,25 +59,69 @@ const ResultDetail: React.FC<ResultDetailProps> = ({ result, onBack }) => {
                     </div>
                 </div>
 
-                {/* Visual Explanation (Heatmap) */}
-                <div className="space-y-2">
+                {/* Image Processing Pipeline */}
+                <div className="space-y-3">
                     <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
                         <Activity className="w-4 h-4 text-teal-600" />
-                        Analysis Region
+                        Image Processing Pipeline
                     </h3>
-                    <div className="relative rounded-xl overflow-hidden aspect-[4/3] bg-slate-900 shadow-md">
-                        <img src={result.imageUrl} alt="Analyzed Nail" className="w-full h-full object-cover opacity-80" />
-                        {/* Simulated Heatmap Overlay - Using a radial gradient to mimic Grad-CAM attention */}
-                        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-red-500/20 to-yellow-400/10 mix-blend-overlay"></div>
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2/3 h-2/3 bg-radial-gradient from-red-500/30 to-transparent blur-xl"></div>
 
-                        <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] text-white">
-                            Tone Group: {result.tone_group} (Calibrated)
+                    {/* Before Calibration */}
+                    <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-600">1. Original Image (Before Calibration)</p>
+                        <div className="relative rounded-lg overflow-hidden aspect-[4/3] bg-slate-100 border border-slate-200">
+                            <img
+                                src={result.preprocessing?.original_image_base64 || result.imageUrl}
+                                alt="Original Before Calibration"
+                                className="w-full h-full object-cover"
+                            />
                         </div>
                     </div>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                        Heatmap highlights regions with high vascular contribution used for the hemoglobin regression model.
-                    </p>
+
+                    {/* After Calibration */}
+                    <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-600">2. After Calibration (Glare Removal & Tone Correction)</p>
+                        <div className="relative rounded-lg overflow-hidden aspect-[4/3] bg-slate-100 border border-slate-200">
+                            <img
+                                src={result.preprocessing?.preprocessed_image_base64 || result.imageUrl}
+                                alt="After Calibration"
+                                className="w-full h-full object-cover"
+                            />
+                        </div>
+                    </div>
+
+                    {/* ROI with GradCAM */}
+                    <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-600">3. ROI Nail Bed with Heatmap Analysis</p>
+                        <div className="relative rounded-lg overflow-hidden aspect-[4/3] bg-slate-900 border border-slate-200">
+                            {/* Display GradCAM heatmap on ROI if available, otherwise show ROI only */}
+                            {result.explainability?.gradcam_nail_overlay ? (
+                                <img
+                                    src={result.explainability.gradcam_nail_overlay}
+                                    alt="ROI with GradCAM Heatmap"
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : result.segmentation?.roi_image_base64 ? (
+                                <img
+                                    src={result.segmentation.roi_image_base64}
+                                    alt="ROI Nail Bed Only"
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <>
+                                    <img src={result.imageUrl} alt="Analyzed Nail" className="w-full h-full object-cover opacity-80" />
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-red-500/20 to-yellow-400/10 mix-blend-overlay"></div>
+                                </>
+                            )}
+
+                            <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[10px] text-white">
+                                Tone Group: {result.tone_group} (Calibrated)
+                            </div>
+                        </div>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Red areas indicate high vascular contribution for hemoglobin estimation.
+                        </p>
+                    </div>
                 </div>
 
                 {/* Contributing Features */}
@@ -91,7 +135,7 @@ const ResultDetail: React.FC<ResultDetailProps> = ({ result, onBack }) => {
                             {result.explanations.top_contributing_features.map((feature, idx) => (
                                 <div key={idx} className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg border border-slate-100 w-full">
                                     <div className={`w-2 h-2 rounded-full ${feature.direction === 'low' ? 'bg-orange-400' :
-                                            feature.direction === 'high' ? 'bg-blue-400' : 'bg-green-400'
+                                        feature.direction === 'high' ? 'bg-blue-400' : 'bg-green-400'
                                         }`}></div>
                                     <div>
                                         <p className="text-xs font-bold text-slate-700 capitalize">{feature.name.replace(/_/g, ' ')}</p>

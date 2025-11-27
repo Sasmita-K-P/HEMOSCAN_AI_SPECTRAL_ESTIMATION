@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Scan from './pages/Scan';
-import ResultDetail from './pages/ResultDetail';
+import ClinicalDashboard from './components/ClinicalDashboard';
 import History from './pages/History';
 import Profile from './pages/Profile';
 import Auth from './pages/Auth';
@@ -49,11 +49,11 @@ const App: React.FC = () => {
 
   const handleScanComplete = (result: AnalysisResult) => {
     if (!user) return;
-    
+
     // Save to local state and "database"
     storageService.saveScan(user.id, result);
     setHistory((prev) => [...prev, result]);
-    
+
     setSelectedResult(result);
     setCurrentView('RESULT');
   };
@@ -71,9 +71,9 @@ const App: React.FC = () => {
         return <Scan onResult={handleScanComplete} onCancel={() => setCurrentView('HOME')} />;
       case 'RESULT':
         return selectedResult ? (
-          <ResultDetail 
-            result={selectedResult} 
-            onBack={() => setCurrentView('HOME')} 
+          <ClinicalDashboard
+            result={selectedResult}
+            onBack={() => setCurrentView('HOME')}
           />
         ) : (
           <Home onNavigate={setCurrentView} lastResult={null} />

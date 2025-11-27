@@ -7,6 +7,12 @@ from fastapi.responses import JSONResponse, Response
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 import time
 
+import os
+# Disable oneDNN optimizations to fix MKL error on Windows
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+# Force CPU usage to prevent GPU memory crashes/conflicts
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
 from app.config import settings
 from app.routes import scan
 from app.database.models import init_db

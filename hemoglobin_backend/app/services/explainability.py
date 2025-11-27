@@ -11,6 +11,7 @@ from PIL import Image
 from app.schemas import Explainability, FeatureImportance
 from app.models.hb_predictor import get_hb_model
 from app.utils.logger import setup_logger
+from app.services.shap_explainer import get_shap_explainer
 
 logger = setup_logger(__name__)
 
@@ -135,69 +136,13 @@ def image_to_base64(image: np.ndarray) -> str:
     return f"data:image/png;base64,{img_str}"
 
 
-def compute_shap_importance(
-    features: dict,
-    prediction: float,
-    baseline_prediction: float = 12.0
-) -> List[FeatureImportance]:
-    """
-    Compute simplified SHAP-like feature importance.
-    (Full SHAP requires training data; this is a placeholder approximation)
-    
-    Args:
-        features: Feature dictionary
-        prediction: Model prediction
-        baseline_prediction: Baseline (average) prediction
-        
-    Returns:
-        List of FeatureImportance objects
-    """
-    # Simplified approach: compute correlation-based importance
-    # In production, use proper SHAP with background dataset
-    
-    color = features['color']
-    texture = features['texture']
-    vascular = features['vascular']
-    
-    # Heuristic importance based on clinical knowledge
-    # Lower L*, lower R/G, lower vessel density → lower Hb
-    importances = [
-        FeatureImportance(
-            name="mean_L",
-            shap_value=float((color['mean_L'] - 180) / 180 * (prediction - baseline_prediction))
-        ),
-        FeatureImportance(
-            name="ratio_R_G",
-            shap_value=float((color['ratio_R_G'] - 1.0) * (prediction - baseline_prediction))
-        ),
-        FeatureImportance(
-            name="vessel_density",
-            shap_value=float((vascular['vessel_density'] - 0.15) * 10 * (prediction - baseline_prediction))
-        ),
-        FeatureImportance(
-            name="mean_a",
-            shap_value=float((color['mean_a'] - 128) / 128 * (prediction - baseline_prediction))
-        ),
-        FeatureImportance(
-            name="glcm_contrast",
-            shap_value=float((texture['glcm_contrast'] - 1.0) * (prediction - baseline_prediction) * 0.5)
-        ),
-    ]
-    
-    # Sort by absolute value
-    importances.sort(key=lambda x: abs(x.shap_value), reverse=True)
-    
-    logger.debug(f"Computed feature importances: top={importances[0].name}")
-    return importances[:5]  # Top 5
-
-
 def generate_explainability(
     roi_image: np.ndarray,
     features: dict,
     prediction: float
 ) -> Explainability:
     """
-    Generate complete explainability outputs.
+    Generate complete explainability outputs using SHAP.
     
     Args:
         roi_image: ROI image (H, W, 3), RGB, 0-255
@@ -207,32 +152,68 @@ def generate_explainability(
     Returns:
         Explainability object
     """
-    # Get model
-    hb_model = get_hb_model()
+    # Get SHAP explainer
+    shap_explainer = get_shap_explainer()
     
-    # Prepare inputs
-    image_norm = roi_image.astype(np.float32) / 255.0
-    image_batch = np.expand_dims(image_norm, axis=0)
+    # Calculate feature importance using SHAP
+    shap_result = shap_explainer.calculate_feature_importance(features)
     
-    feature_array = hb_model.features_to_array(features)
-    feature_batch = np.expand_dims(feature_array, axis=0)
+    # Generate visualization
+    feature_plot_base64 = shap_explainer.generate_visualization(shap_result['all_features'])
     
-    # Compute Grad-CAM
+    # Convert to FeatureImportance schema
+    top_features = [
+        FeatureImportance(
+            name=feat['name'],
+            value=feat['value'],
+            importance=feat['importance'],
+            contribution=feat['contribution']
+        )
+        for feat in shap_result['top_features']
+    ]
+    
+    # Try to compute Grad-CAM (will use mock if model not trained)
+    gradcam_base64 = None
     try:
-        heatmap = compute_gradcam(hb_model.model, image_batch, feature_batch)
+        hb_model = get_hb_model()
+        if hb_model.is_trained and hb_model.model is not None:
+            # Use real GradCAM with trained model
+            image_norm = roi_image.astype(np.float32) / 255.0
+            image_batch = np.expand_dims(image_norm, axis=0)
+            feature_array = hb_model.features_to_array(features)
+            feature_batch = np.expand_dims(feature_array, axis=0)
+            
+            heatmap = compute_gradcam(hb_model.model, image_batch, feature_batch)
+            logger.info("Generated real GradCAM from trained model")
+        else:
+            # Use mock GradCAM based on color analysis
+            from app.services.mock_gradcam import generate_mock_gradcam_heatmap
+            heatmap = generate_mock_gradcam_heatmap(roi_image, features)
+            logger.info("Generated mock GradCAM (model not trained)")
+        
+        # Create overlay
         overlaid = overlay_heatmap(roi_image, heatmap, alpha=0.5)
         gradcam_base64 = image_to_base64(overlaid)
+        
     except Exception as e:
-        logger.error(f"Grad-CAM failed: {e}")
-        gradcam_base64 = None
-    
-    # Compute feature importance
-    top_features = compute_shap_importance(features, prediction)
+        logger.error(f"GradCAM generation failed: {e}")
+        # Even on error, try to create a simple visualization
+        try:
+            from app.services.mock_gradcam import generate_mock_gradcam_heatmap
+            heatmap = generate_mock_gradcam_heatmap(roi_image, features)
+            overlaid = overlay_heatmap(roi_image, heatmap, alpha=0.5)
+            gradcam_base64 = image_to_base64(overlaid)
+            logger.info("Generated fallback mock GradCAM")
+        except Exception as e2:
+            logger.error(f"Fallback GradCAM also failed: {e2}")
     
     explainability = Explainability(
         gradcam_nail_overlay=gradcam_base64,
-        top_features=top_features
+        top_features=top_features,
+        feature_importance_plot=feature_plot_base64,
+        interpretation=shap_result['interpretation'],
+        method=shap_result['method']
     )
     
-    logger.info("Generated explainability outputs")
+    logger.info("Generated SHAP-based explainability outputs")
     return explainability

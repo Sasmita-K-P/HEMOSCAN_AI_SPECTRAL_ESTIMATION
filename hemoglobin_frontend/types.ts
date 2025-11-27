@@ -30,6 +30,26 @@ export interface AnalysisResult {
   explanations: {
     top_contributing_features: ExplanationFeature[];
   };
+  explainability?: {
+    gradcam_nail_overlay?: string;
+    top_features?: Array<{
+      name: string;
+      value: number;
+      importance: number;
+      contribution: number;
+    }>;
+    feature_importance_plot?: string;
+    interpretation?: string;
+    method?: string;
+  };
+  preprocessing?: {
+    tone_cluster?: number;
+    original_image_base64?: string;
+    preprocessed_image_base64?: string;
+  };
+  segmentation?: {
+    roi_image_base64?: string;
+  };
   imageUrl: string; // Data URL
 }
 

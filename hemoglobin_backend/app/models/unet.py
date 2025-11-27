@@ -1,6 +1,12 @@
 """
 UNet model architecture for nail-bed segmentation.
 """
+import os
+# Disable oneDNN optimizations to fix MKL error on Windows
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+# Force CPU usage to prevent GPU memory crashes/conflicts
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
 import tensorflow as tf
 import keras
 from keras import layers

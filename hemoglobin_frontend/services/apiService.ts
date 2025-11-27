@@ -112,6 +112,15 @@ function mapBackendToFrontend(backendData: any, imageUrl: string): AnalysisResul
                 { name: 'texture', direction: 'normal', impact: 'Nail bed texture' }
             ]
         },
+        explainability: backendData.explainability,
+        preprocessing: backendData.preprocessing ? {
+            tone_cluster: backendData.preprocessing.tone_cluster,
+            original_image_base64: backendData.preprocessing.original_image_base64,
+            preprocessed_image_base64: backendData.preprocessing.preprocessed_image_base64
+        } : undefined,
+        segmentation: backendData.segmentation ? {
+            roi_image_base64: backendData.segmentation.roi_image_base64
+        } : undefined,
         imageUrl
     };
 }

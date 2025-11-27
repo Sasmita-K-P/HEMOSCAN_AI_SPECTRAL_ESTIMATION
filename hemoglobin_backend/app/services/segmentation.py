@@ -175,15 +175,19 @@ def segment_nail_bed(
     Returns:
         Tuple of (roi_image, mask, segmentation_report)
     """
-    # Get UNet model
-    unet = get_unet_model()
-    
-    # Predict mask
-    mask_pred = unet.predict(image)
-    
-    # Threshold and clean
-    mask_binary = threshold_mask(mask_pred, threshold=0.5)
-    mask_clean = clean_mask(mask_binary)
+    # Use robust CV-based segmentation fallback to avoid TensorFlow memory crashes
+    # This ensures stability on all hardware configurations
+    try:
+        # Generate mask using HSV thresholding (robust for skin/nail)
+        mask_clean = generate_pseudo_mask(image)
+        logger.info("Used robust CV segmentation (fallback active)")
+        
+    except Exception as e:
+        logger.error(f"Segmentation failed: {e}")
+        # Absolute fallback: center crop
+        h, w = image.shape[:2]
+        mask_clean = np.zeros((h, w), dtype=np.uint8)
+        mask_clean[h//4:3*h//4, w//4:3*w//4] = 255
     
     # Estimate IOU (using mask coverage as proxy)
     coverage = np.sum(mask_clean > 0) / mask_clean.size

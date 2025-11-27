@@ -1,4 +1,4 @@
-# 🩺 HemoScan Antigravity
+# 🩺 HemoScan 
 
 AI-powered hemoglobin estimation using nail bed images.
 

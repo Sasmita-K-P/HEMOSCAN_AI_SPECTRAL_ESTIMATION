@@ -31,6 +31,8 @@ class PreprocessingReport(BaseModel):
     lab_mean: List[float] = Field(..., description="Mean LAB values [L, a, b]")
     scaling_factor: float = Field(..., description="Fairness scaling factor applied")
     glare_mask_coverage: float = Field(..., description="Fraction of pixels with glare (0-1)")
+    original_image_base64: Optional[str] = Field(None, description="Base64 encoded original image")
+    preprocessed_image_base64: Optional[str] = Field(None, description="Base64 encoded preprocessed image")
 
 
 class SegmentationReport(BaseModel):
@@ -38,6 +40,7 @@ class SegmentationReport(BaseModel):
     iou_estimate: float = Field(..., description="Estimated IOU score")
     mask_path: str = Field(..., description="Path to saved mask image")
     roi_path: str = Field(..., description="Path to extracted ROI image")
+    roi_image_base64: Optional[str] = Field(None, description="Base64 encoded ROI nail bed image")
 
 
 class ColorFeatures(BaseModel):
@@ -92,15 +95,20 @@ class Prediction(BaseModel):
 
 
 class FeatureImportance(BaseModel):
-    """SHAP feature importance."""
-    name: str
-    shap_value: float
+    """Feature importance from SHAP analysis."""
+    name: str = Field(..., description="Feature name")
+    value: float = Field(..., description="Feature value")
+    importance: float = Field(..., description="Importance score (0-1)")
+    contribution: float = Field(..., description="Contribution percentage")
 
 
 class Explainability(BaseModel):
     """Explainability outputs."""
     gradcam_nail_overlay: Optional[str] = Field(None, description="Base64-encoded Grad-CAM overlay")
     top_features: List[FeatureImportance] = Field(default_factory=list, description="Top contributing features")
+    feature_importance_plot: Optional[str] = Field(None, description="Base64-encoded feature importance visualization")
+    interpretation: Optional[str] = Field(None, description="Human-readable interpretation")
+    method: Optional[str] = Field(None, description="Explainability method used")
 
 
 class VersionInfo(BaseModel):
